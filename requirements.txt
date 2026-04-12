@@ -12,7 +12,7 @@ seaborn==0.13.2
 mlflow==2.12.2
 dagshub==0.3.32
 dvc==3.51.2
-
+pathspec==0.11.2
 # API (FastAPI + server)
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
@@ -24,3 +24,4 @@ python-dotenv==1.0.1
 
 # Serialization (important for MLflow models)
 cloudpickle==3.0.0
+
