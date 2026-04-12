@@ -23,8 +23,10 @@ jobs:
           pip install dvc mlflow dagshub
 
       - name: Run DVC Pipeline
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          dvc repro 
+          dvc repro --force
 
       - name: Verify model file
         run: |
