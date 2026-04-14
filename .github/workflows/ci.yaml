@@ -31,3 +31,10 @@ jobs:
       - name: Verify model file
         run: |
           ls -R
+      
+      - name: Run model test
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: |
+          python -m unittest tests/model_test.py
+
