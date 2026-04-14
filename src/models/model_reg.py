@@ -47,7 +47,6 @@ model_name = run_info['model_name']  # Fetch model name from the JSON file
 client = MlflowClient()
 
 # Create the model URI
-model_uri = f"runs:/{run_id}/model"
 model_uri = mlflow.get_artifact_uri("model")
 
 # Register the model
