@@ -4,112 +4,104 @@ from mlflow.tracking import MlflowClient
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import os
 import pandas as pd
+import time
 
-# Load DagsHub token from environment variables for secure access
-# The DagsHub token is required for authentication when interacting with the DagsHub MLflow server
+# Load DagsHub token
 dagshub_token = os.getenv("DAGSHUB_TOKEN")
 if not dagshub_token:
-    # Raise an error if the DAGSHUB_TOKEN is not set in the environment variables
     raise EnvironmentError("DAGSHUB_TOKEN environment variable is not set")
 
-# Set the environment variables for MLflow using the DagsHub token
-# These environment variables are used for authenticating with MLflow
+# MLflow auth
 os.environ["MLFLOW_TRACKING_USERNAME"] = dagshub_token
 os.environ["MLFLOW_TRACKING_PASSWORD"] = dagshub_token
 
-# Set the tracking URI for MLflow to point to your DagsHub MLflow instance
-# The URI connects MLflow to the repository where your models are tracked
-dagshub_url = "https://dagshub.com"
-repo_owner = "vrushabh-09"
-repo_name = "EndToEnd_MLOps_FastAPI_Water_Potability_Prediction"
-mlflow.set_tracking_uri(f"{dagshub_url}/{repo_owner}/{repo_name}.mlflow")
+# MLflow tracking URI
+mlflow.set_tracking_uri(
+    "https://dagshub.com/vrushabh-09/EndToEnd_MLOps_FastAPI_Water_Potability_Prediction.mlflow"
+)
 
-# Specify the name of the model that we want to load and test
-model_name = "Best Model"   # must match your MLflow registry
+model_name = "Best Model"
 
-# Unit test class to test the loading of models from the 'Staging' stage in MLflow
+
 class TestModelLoading(unittest.TestCase):
-    """Unit test class to verify MLflow model loading from the Staging stage."""
+
+    def load_model_with_retry(self, model_uri, retries=3, delay=5):
+        """
+        Retry logic for loading model (handles DagsHub 500 errors)
+        """
+        for attempt in range(retries):
+            try:
+                return mlflow.pyfunc.load_model(model_uri)
+            except Exception as e:
+                if attempt < retries - 1:
+                    print(f"Retry {attempt+1} failed. Retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    raise Exception(f"Model loading failed after retries: {e}")
 
     def test_model_in_staging(self):
-        """Test if the model exists in the 'Staging' stage."""
-        
         client = MlflowClient()
         versions = client.get_latest_versions(model_name, stages=["Staging"])
 
-        self.assertGreater(len(versions), 0, "No model found in the 'Staging' stage.")
+        self.assertGreater(len(versions), 0, "No model found in Staging")
 
     def test_model_loading(self):
-        """Test if the model can be loaded properly from the Staging stage."""
-        
         client = MlflowClient()
         versions = client.get_latest_versions(model_name, stages=["Staging"])
 
         if not versions:
-            self.fail("No model found in the 'Staging' stage, skipping model loading test.")
+            self.fail("No model in Staging")
 
         run_id = versions[0].run_id
+        model_uri = f"runs:/{run_id}/model"
 
-        # Correct artifact path
-        logged_model = f"runs:/{run_id}/model"
+        # retry logic
+        loaded_model = self.load_model_with_retry(model_uri)
 
-        try:
-            loaded_model = mlflow.pyfunc.load_model(logged_model)
-
-        except Exception as e:
-            # FIX: handle DagsHub API failure (500 errors)
-            self.skipTest(f"Skipping due to MLflow/DagsHub issue: {e}")
-
-        self.assertIsNotNone(loaded_model, "The loaded model is None.")
-        print(f"Model successfully loaded from {logged_model}.")
+        self.assertIsNotNone(loaded_model)
+        print(f"Model loaded successfully from {model_uri}")
 
     def test_model_performance(self):
-        """Test the performance of the model on test data."""
-
         client = MlflowClient()
         versions = client.get_latest_versions(model_name, stages=["Staging"])
 
         if not versions:
-            self.fail("No model found in the 'Staging' stage, skipping performance test.")
+            self.fail("No model in Staging")
 
         run_id = versions[0].run_id
-        logged_model = f"runs:/{run_id}/model"
+        model_uri = f"runs:/{run_id}/model"
 
-        try:
-            loaded_model = mlflow.pyfunc.load_model(logged_model)
-        except Exception as e:
-            # FIX: avoid CI failure due to DagsHub instability
-            self.skipTest(f"Skipping performance test due to MLflow/DagsHub issue: {e}")
+        # retry logic
+        model = self.load_model_with_retry(model_uri)
 
-        # Load test data 
-        test_data_path = "./data/processed/test_processed.csv"
-        if not os.path.exists(test_data_path):
-            self.fail(f"Test data not found at {test_data_path}")
-        
-        test_data = pd.read_csv(test_data_path)
-        X_test = test_data.drop(columns=["Potability"])
-        y_test = test_data["Potability"]
+        # Load test data
+        test_path = "./data/processed/test_processed.csv"
+        if not os.path.exists(test_path):
+            self.fail(f"Test data not found: {test_path}")
 
-        # Predictions
-        predictions = loaded_model.predict(X_test)
+        df = pd.read_csv(test_path)
+        X = df.drop(columns=["Potability"])
+        y = df["Potability"]
 
-        accuracy = accuracy_score(y_test, predictions)
-        precision = precision_score(y_test, predictions)
-        recall = recall_score(y_test, predictions)
-        f1 = f1_score(y_test, predictions)
+        preds = model.predict(X)
 
-        print(f"Accuracy: {accuracy}")
-        print(f"Precision: {precision}")
-        print(f"Recall: {recall}")
+        acc = accuracy_score(y, preds)
+        prec = precision_score(y, preds)
+        rec = recall_score(y, preds)
+        f1 = f1_score(y, preds)
+
+        print("\nMODEL METRICS")
+        print(f"Accuracy: {acc}")
+        print(f"Precision: {prec}")
+        print(f"Recall: {rec}")
         print(f"F1 Score: {f1}")
 
-        # Threshold validation
-        self.assertGreaterEqual(accuracy, 0.6, "Accuracy is below threshold.")
-        self.assertGreaterEqual(precision, 0.3, "Precision is below threshold.")
-        self.assertGreaterEqual(recall, 0.3, "Recall is below threshold.")
-        self.assertGreaterEqual(f1, 0.3, "F1 Score is below threshold.")
+        # Threshold checks
+        self.assertGreaterEqual(acc, 0.6)
+        self.assertGreaterEqual(prec, 0.3)
+        self.assertGreaterEqual(rec, 0.3)
+        self.assertGreaterEqual(f1, 0.3)
 
 
-# Run tests
 if __name__ == "__main__":
     unittest.main()
