@@ -43,5 +43,5 @@ jobs:
         env:
           DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
         run: |
-          python src/models/promote_model.py
+          python scripts/promote_model.py
 
