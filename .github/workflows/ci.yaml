@@ -38,3 +38,9 @@ jobs:
         run: |
           python -m unittest tests/model_test.py
 
+      - name: Promote model to production
+        if: success()
+        env:
+          DAGSHUB_TOKEN: ${{ secrets.DAGSHUB_TOKEN }}
+        run: python scripts/promote_model.py
+
