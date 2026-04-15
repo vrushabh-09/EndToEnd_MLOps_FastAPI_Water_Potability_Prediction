@@ -40,11 +40,6 @@ stages:
     - reports/run_info.json
     - src/models/model_reg.py
 
-  promote_model:
-    cmd: python src/models/promote_model.py
-    deps:
-    - src/models/promote_model.py
-    - reports/run_info.json
     
 
  

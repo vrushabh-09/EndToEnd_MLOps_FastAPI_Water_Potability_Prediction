@@ -64,4 +64,4 @@ def promote_model_to_production():
 
 
 if __name__ == "__main__":
-    promote_model_to_production()
+    promote_model_to_production() 
